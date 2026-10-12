@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: url-shortener
+  datasource:
+    url: jdbc:h2:mem:shortener;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    open-in-view: false
+    hibernate:
+      # In-memory dev/test default: Hibernate creates the schema. The `file` profile (persistent data) uses the
+      # versioned Flyway migrations in db/migration + `validate` instead; see docs/adr/ADR-007.
+      ddl-auto: update
+  flyway:
+    enabled: false
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: 8080
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # Ready = able to serve traffic = app state accepting traffic AND the database answers.
+        readiness:
+          include: readinessState,db
+
+logging:
+  pattern:
+    # every log line of a request carries its X-Request-Id (empty outside a request)
+    level: "%5p [%X{requestId:-}]"
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  block-private-networks: true
+  code-length: 7
+  max-code-attempts: 5
+  visitor-salt: ${APP_VISITOR_SALT:change-me-in-production}
+  rate-limit:
+    enabled: true
+    capacity: 30
+    refill-per-second: 0.5
+    trust-forwarded-for: false
+    max-tracked-clients: 10000

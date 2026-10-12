@@ -1,0 +1,70 @@
+# Smoke test transcript
+# target : http://localhost:8080
+# run at : 2026-10-12T21:16:03Z
+
+## 1. Service is up and the contract is served
+PASS  health status (got: 200)
+PASS  health body (contains: UP)
+PASS  openapi.yaml served (got: 200)
+
+## 2. Shorten
+PASS  create returns 201 (got: 201)
+PASS  code is 7 chars (got: 7)
+PASS  Location header (contains: /api/v1/links/kcTA3ry)
+
+## 3. Redirect (302, no-store) and click recording
+PASS  redirect status (got: 302)
+PASS  redirect target (got: https://93.184.216.34/docs/getting-started)
+PASS  no-store (contains: no-store)
+PASS  analytics status (got: 200)
+PASS  one click counted (contains: "totalClicks":1)
+
+## 4. Idempotent create
+PASS  first call creates (got: 201)
+PASS  retry replays (got: 200)
+PASS  replay header (got: true)
+PASS  original code was captured (got: yes)
+PASS  same code on replay (got: QSDjYhX)
+PASS  key reuse with different request (got: 422)
+
+## 5. Custom alias and conflicts
+PASS  alias create (got: 201)
+PASS  alias is the code (got: smoke-1791839764-a)
+PASS  duplicate alias (got: 409)
+PASS  reserved alias (got: 409)
+
+## 6. Guardrails
+PASS  SSRF target (cloud metadata IP) rejected (got: 400)
+PASS  loopback rejected (got: 400)
+PASS  non-http scheme rejected (got: 400)
+PASS  credentials in URL rejected (got: 400)
+PASS  missing url rejected (got: 400)
+PASS  problem+json content type (contains: application/problem+json)
+PASS  unknown code (got: 404)
+
+## 7. Deactivate
+PASS  deactivate (got: 204)
+PASS  deactivate is idempotent (got: 204)
+PASS  deactivated link is gone (got: 410)
+
+## 8. Observability
+PASS  created counter exposed (got: 200)
+PASS  analytics-failure counter exposed (got: 200)
+
+## 9. Operability (request correlation, stable error codes, readiness, HEAD)
+PASS  unknown link (got: 404)
+PASS  caller request id echoed (got: smoke-trace-1)
+PASS  stable machine-readable error code (contains: "code":"LINK_NOT_FOUND")
+PASS  readiness (includes the database) (got: 200)
+PASS  HEAD redirects like GET (got: 302)
+PASS  HEAD is not counted as a visit (contains: "totalClicks":0)
+
+## 10. Change a link's expiry (brownfield enhancement)
+PASS  extend expiry (got: 200)
+PASS  remove expiry (got: 200)
+PASS  expiresAt is now null (contains: "expiresAt":null)
+PASS  empty change rejected (got: 400)
+PASS  unknown code (got: 404)
+PASS  deactivated link cannot be revived (got: 410)
+
+# RESULT: 45 passed, 0 failed

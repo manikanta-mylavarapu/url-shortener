@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Documented suppressions (each is a known false positive for this design, not a way to hide findings):
+  - EI_EXPOSE_REP / EI_EXPOSE_REP2: records and JPA entities expose their (immutable or framework-managed) fields on purpose.
+  - CT_CONSTRUCTOR_THROW: validating constructor arguments by throwing is intended (CodeGenerator, TokenBucketLimiter).
+  - UWF_* / NP_UNWRITTEN_*: JPA entity fields (generated id, ...) are written by Hibernate through reflection, never in Java code.
+-->
+<FindBugsFilter>
+  <Match><Bug pattern="EI_EXPOSE_REP"/></Match>
+  <Match><Bug pattern="EI_EXPOSE_REP2"/></Match>
+  <Match><Bug pattern="CT_CONSTRUCTOR_THROW"/></Match>
+  <Match>
+    <Package name="com.example.shortener.domain"/>
+    <Bug pattern="UWF_UNWRITTEN_FIELD,NP_UNWRITTEN_FIELD,UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR,URF_UNREAD_FIELD"/>
+  </Match>
+</FindBugsFilter>

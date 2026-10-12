@@ -1,0 +1,14 @@
+# Activate with: --spring.profiles.active=file   (data survives restarts in ./data)
+# Schema is owned by Flyway (src/main/resources/db/migration); Hibernate only validates it.
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/shortener;AUTO_SERVER=FALSE
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    # A ./data directory created by an earlier (ddl-auto=update) run has tables but no Flyway history:
+    # adopt it as version 0 and let the idempotent V1 migration run on top.
+    baseline-on-migrate: true
+    baseline-version: "0"

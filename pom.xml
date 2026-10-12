@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.3.5</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.example</groupId>
+  <artifactId>url-shortener</artifactId>
+  <version>1.0.0</version>
+  <name>url-shortener</name>
+  <description>AI-assisted engineering prototype: URL shortener with analytics and reliability features</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <!-- JaCoCo 0.8.15 is the first release that supports Java 26 (0.8.14: 25, 0.8.13: 24). -->
+    <jacoco.version>0.8.15</jacoco.version>
+    <!--
+      Spring Boot 3.3.x manages an older Byte Buddy (used by Mockito's inline mock maker) that rejects newer JDKs
+      with "Java 26 (70) is not supported by the current version of Byte Buddy". 1.17.8 adds Java 26 support.
+      If a future JDK complains again, raise this version (1.18.x was the latest line when this was written).
+    -->
+    <byte-buddy.version>1.17.8</byte-buddy.version>
+    <!-- default so "@{argLine}" in surefire resolves even when the JaCoCo agent is skipped -->
+    <argLine></argLine>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <!-- version managed by Spring Boot; only active under the `file` profile (spring.flyway.enabled=true) -->
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- single source of truth for the API contract: docs/openapi.yaml is served at /openapi.yaml -->
+      <resource>
+        <directory>docs</directory>
+        <includes>
+          <include>openapi.yaml</include>
+        </includes>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!--
+            @{argLine} keeps the JaCoCo agent. net.bytebuddy.experimental lets Byte Buddy (Mockito) accept class files
+            from JDKs newer than it knows; safety net for non-LTS JDKs, remove once on a Boot version that supports yours.
+          -->
+          <argLine>@{argLine} -Dnet.bytebuddy.experimental=true</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <!-- Lint gate: part of every `mvn verify`. Rules are objective (dead code, defects); see config/quality/checkstyle.xml -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>3.4.0</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>10.17.0</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>config/quality/checkstyle.xml</configLocation>
+          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+          <consoleOutput>true</consoleOutput>
+          <failsOnError>true</failsOnError>
+          <violationSeverity>error</violationSeverity>
+        </configuration>
+        <executions>
+          <execution>
+            <id>checkstyle</id>
+            <phase>verify</phase>
+            <goals><goal>check</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <goals><goal>prepare-agent</goal></goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals><goal>report</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Static analysis gate, part of `mvn verify` on supported JDKs. SpotBugs 4.8 reads JDK class files through ASM, which only
+      understands class-file versions up to Java 23; on a newer JDK (e.g. 26) it would crash on the JDK's own classes, so the
+      profile switches itself off there (CI runs it on 17 and 21). Force it with -Pspotbugs, skip it with -Dspotbugs.skip=true.
+    -->
+    <profile>
+      <id>spotbugs</id>
+      <activation>
+        <jdk>[17,24)</jdk>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-maven-plugin</artifactId>
+            <version>4.8.6.2</version>
+            <configuration>
+              <effort>Max</effort>
+              <threshold>Medium</threshold>
+              <excludeFilterFile>config/quality/spotbugs-exclude.xml</excludeFilterFile>
+              <failOnError>true</failOnError>
+            </configuration>
+            <executions>
+              <execution>
+                <id>spotbugs</id>
+                <phase>verify</phase>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!--
+      Dependency vulnerability scan (OWASP). Opt-in locally because it downloads the NVD database (minutes, rate limited
+      without a key, needs network); enforced in CI whenever the NVD_API_KEY secret exists:
+        NVD_API_KEY=... mvn -Psecurity verify
+    -->
+    <profile>
+      <id>security</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>10.0.4</version>
+            <configuration>
+              <failBuildOnCVSS>7</failBuildOnCVSS>
+              <nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
+            </configuration>
+            <executions>
+              <execution>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

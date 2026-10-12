@@ -1,0 +1,191 @@
+openapi: 3.0.3
+info:
+  title: URL Shortener API
+  version: 1.0.0
+  description: Shorten, redirect, manage and analyze links. All errors are RFC 7807 problem+json.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/links:
+    post:
+      summary: Create a short link
+      operationId: createLink
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >
+            Makes retries safe. Repeating the same request with the same key returns the original link (200)
+            instead of creating a duplicate. Reusing a key with a different request is rejected (422).
+          schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateLinkRequest' }
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location: { schema: { type: string }, description: Path of the created resource }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Link' }
+        '200':
+          description: Replay of an earlier request with the same Idempotency-Key
+          headers:
+            Location: { schema: { type: string } }
+            Idempotent-Replayed: { schema: { type: string, example: 'true' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Link' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '422': { description: Idempotency-Key reused with a different request, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '409': { description: Alias taken or reserved, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '429': { description: Rate limited, headers: { Retry-After: { schema: { type: integer } } }, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '503': { description: Could not allocate a unique code, headers: { Retry-After: { schema: { type: integer } } }, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    get:
+      summary: List links (newest first)
+      operationId: listLinks
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: A page of links
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkPage' }
+  /api/v1/links/{code}:
+    parameters:
+      - { name: code, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get link metadata
+      operationId: getLink
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Link' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      summary: Change a link's expiry (extend, shorten or remove it)
+      description: >
+        Provide exactly one of `expiresInSeconds` (new expiry = now + N seconds, same 60 s .. 1 year bounds as on create) or
+        `neverExpires: true`. Works on active and on expired links (extending an expired link brings it back); a deactivated
+        link answers 410 and cannot be revived this way. Not retry-idempotent in time: repeating `expiresInSeconds`
+        moves the expiry forward again.
+      operationId: updateLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateLinkRequest' }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Link' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+    delete:
+      summary: Deactivate a link (idempotent soft delete; link then answers 410)
+      operationId: deactivateLink
+      responses:
+        '204': { description: Deactivated }
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /api/v1/links/{code}/analytics:
+    parameters:
+      - { name: code, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Link analytics
+      operationId: getAnalytics
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Analytics' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /{code}:
+    get:
+      summary: Redirect to the original URL (records a click)
+      operationId: redirect
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string } }
+      responses:
+        '302':
+          description: Found
+          headers:
+            Location: { schema: { type: string, format: uri } }
+            Cache-Control: { schema: { type: string, example: no-store } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { description: Expired or deactivated, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+components:
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    CreateLinkRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, maxLength: 2048, description: 'http/https only; no credentials; must not resolve to private/internal addresses' }
+        alias: { type: string, pattern: '^[A-Za-z0-9_-]{3,32}$', nullable: true }
+        expiresInSeconds: { type: integer, format: int64, minimum: 60, maximum: 31536000, nullable: true }
+    UpdateLinkRequest:
+      type: object
+      description: Exactly one of the two properties must be given.
+      properties:
+        expiresInSeconds: { type: integer, format: int64, minimum: 60, maximum: 31536000, nullable: true }
+        neverExpires: { type: boolean, nullable: true, description: 'true removes the expiry' }
+    Link:
+      type: object
+      properties:
+        code: { type: string }
+        shortUrl: { type: string, format: uri }
+        originalUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [ACTIVE, EXPIRED, DEACTIVATED] }
+        totalClicks: { type: integer, format: int64 }
+    LinkPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Link' } }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    Analytics:
+      type: object
+      properties:
+        code: { type: string }
+        totalClicks: { type: integer, format: int64 }
+        uniqueVisitors: { type: integer, format: int64, description: Approximate (salted hash of IP + User-Agent) }
+        clicksPerDay:
+          type: array
+          items:
+            type: object
+            properties:
+              day: { type: string, format: date, description: UTC day }
+              clicks: { type: integer, format: int64 }
+        topReferrers:
+          type: array
+          items:
+            type: object
+            properties:
+              referrer: { type: string, description: 'Host only, "direct" or "unknown"' }
+              clicks: { type: integer, format: int64 }
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          type: string
+          description: Stable machine-readable identifier; branch on this, not on title/detail.
+          enum: [VALIDATION_FAILED, INVALID_URL, INVALID_ALIAS, INVALID_IDEMPOTENCY_KEY, IDEMPOTENCY_KEY_REUSED, LINK_NOT_FOUND, ALIAS_UNAVAILABLE, LINK_GONE, CODE_ALLOCATION_FAILED, RATE_LIMITED, INTERNAL_ERROR, HTTP_ERROR]
+        requestId: { type: string, description: 'Same value as the X-Request-Id response header' }
+        errors:
+          type: object
+          additionalProperties: { type: string }
+          description: Per-field validation messages (400 only)

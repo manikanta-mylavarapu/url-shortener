@@ -1,0 +1,56 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21']   # 17 = build target, 21 = current LTS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - name: Build, lint (Checkstyle), static analysis (SpotBugs), tests, coverage
+        run: mvn -B verify
+      - name: End-to-end smoke test against the packaged jar
+        if: matrix.java == '17'
+        run: |
+          java -jar target/url-shortener-1.0.0.jar > app.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8080/actuator/health/readiness >/dev/null && break; sleep 1; done
+          ./scripts/smoke.sh
+      - name: Upload evidence
+        if: always() && matrix.java == '17'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence
+          path: |
+            target/site/jacoco
+            target/checkstyle-result.xml
+            target/spotbugsXml.xml
+            docs/evidence/smoke-transcript.txt
+            app.log
+
+  security:
+    # dependency vulnerability scan; needs the NVD_API_KEY repository secret (skipped otherwise)
+    runs-on: ubuntu-latest
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.NVD_API_KEY != ''
+      - uses: actions/setup-java@v4
+        if: env.NVD_API_KEY != ''
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: OWASP dependency-check (fails on CVSS >= 7)
+        if: env.NVD_API_KEY != ''
+        run: mvn -B -Psecurity -DskipTests verify
