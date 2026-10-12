@@ -98,7 +98,7 @@
         <!-- Lint gate: part of every `mvn verify`. Rules are objective (dead code, defects); see config/quality/checkstyle.xml -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-checkstyle-plugin</artifactId>
-        <version>3.4.0</version>
+        <version>3.6.0</version>
         <dependencies>
           <dependency>
             <groupId>com.puppycrawl.tools</groupId>
