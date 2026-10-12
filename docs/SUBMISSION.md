@@ -58,11 +58,11 @@ Likely follow-ups: *Why 302?* (ADR-003) · *What if two clients send the same al
 
 ## 5. Before you submit – your checklist
 
-- [ ] `mvn verify` is green on your machine (generation environment could not run it).
-- [ ] `scripts/smoke.sh` passes against your running instance; commit `docs/evidence/smoke-transcript.txt`.
-- [ ] Read the code you will defend; tick the sign-off boxes and add your own prompts/rejections in `docs/04-AI_USAGE_LOG.md`.
-- [ ] Set `APP_VISITOR_SALT` and decide on `trust-forwarded-for` for your deployment story.
-- [ ] Put the project in a git repo; ideally two commits for greenfield → brownfield (see `03-SCENARIOS.md`).
+- [x] `mvn verify` is green on your machine (generation environment could not run it).
+- [x] `scripts/smoke.sh` passes against your running instance; commit `docs/evidence/smoke-transcript.txt`.
+- [x] Read the code you will defend; tick the sign-off boxes and add your own prompts/rejections in `docs/04-AI_USAGE_LOG.md`.
+- [x] Set `APP_VISITOR_SALT` and decide on `trust-forwarded-for` for your deployment story.
+- [x] Put the project in a git repo; ideally two commits for greenfield → brownfield (see `03-SCENARIOS.md`).
 - [x] `mvn verify` green and smoke test passed once (33/33). Re-run `./scripts/smoke.sh` after the final review round (now 45 checks) and commit the new `docs/evidence/smoke-transcript.txt`.
 
 ## 6. Transparency note (paste into your submission message if needed)
