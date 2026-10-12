@@ -100,7 +100,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception ex, Object body, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         ResponseEntity<Object> response = super.handleExceptionInternal(ex, body, headers, status, request);
         if (response != null && response.getBody() instanceof ProblemDetail pd) {
-            if (pd.getProperties() == null || !pd.getProperties().containsKey("code")) {
+            Map<String, Object> props = pd.getProperties(); // may be null: read once, then test the local
+            if (props == null || !props.containsKey("code")) {
                 pd.setProperty("code", ErrorCode.HTTP_ERROR.name());
             }
             addRequestId(pd);
